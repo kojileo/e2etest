@@ -72,7 +72,7 @@ export interface GeneratedTestCase {
 
 // WebSocket メッセージ
 export interface WebSocketMessage {
-  type: 'test_started' | 'test_progress' | 'test_completed' | 'test_error';
+  type: 'test_started' | 'test_progress' | 'test_completed' | 'test_error' | 'connection' | 'error' | 'pong';
   payload: any;
   executionId: string;
   timestamp: Date;

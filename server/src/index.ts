@@ -31,7 +31,7 @@ app.use('/api/tests', testRoutes);
 app.use('/api/ai', aiRoutes);
 
 // ヘルスチェック
-app.get('/health', (req, res) => {
+app.get('/health', (_req, res) => {
   res.json({ 
     status: 'ok', 
     timestamp: new Date().toISOString(),
@@ -40,7 +40,7 @@ app.get('/health', (req, res) => {
 });
 
 // エラーハンドリング
-app.use((err: Error, req: express.Request, res: express.Response, next: express.NextFunction) => {
+app.use((err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
   console.error('Error:', err);
   res.status(500).json({
     success: false,
@@ -50,7 +50,7 @@ app.use((err: Error, req: express.Request, res: express.Response, next: express.
 });
 
 // 404 ハンドリング
-app.use('*', (req, res) => {
+app.use('*', (_req, res) => {
   res.status(404).json({
     success: false,
     error: 'Route not found'

@@ -1,5 +1,5 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
-import { GenerateTestRequest, GeneratedTestCase, TestStep, StepType } from '../../../shared/types';
+import { GenerateTestRequest, GeneratedTestCase, TestStep, StepType, TestStatus } from '../../../shared/types';
 
 export class GeminiService {
   private genAI: GoogleGenerativeAI;
@@ -16,172 +16,269 @@ export class GeminiService {
   }
 
   /**
-   * 自然言語でのテストシナリオからE2Eテストケースを生成
+   * AIを使用してテストケースを生成
    */
   async generateTestCase(request: GenerateTestRequest): Promise<GeneratedTestCase> {
-    const prompt = this.buildPrompt(request);
-    
     try {
+      const prompt = this.buildTestGenerationPrompt(request);
+      console.log('Sending prompt to Gemini:', prompt);
+
       const result = await this.model.generateContent(prompt);
       const response = await result.response;
       const text = response.text();
-      
-      // JSONレスポンスをパース
-      const parsedResponse = this.parseAIResponse(text);
-      
+
+      console.log('Gemini response:', text);
+
+      // レスポンスをパース
+      const parsedResult = this.parseTestCaseResponse(text, request.targetUrl);
+
       return {
-        scenario: {
-          name: parsedResponse.name,
-          description: parsedResponse.description,
-          targetUrl: request.targetUrl,
-          steps: parsedResponse.steps,
-          aiPrompt: request.description
-        },
-        confidence: parsedResponse.confidence || 0.8,
-        reasoning: parsedResponse.reasoning || 'AIが生成したテストケース'
+        scenario: parsedResult.scenario,
+        confidence: parsedResult.confidence,
+        reasoning: parsedResult.reasoning
       };
-      
     } catch (error) {
-      console.error('Gemini API エラー:', error);
-      throw new Error('テストケースの生成に失敗しました');
+      console.error('Gemini API error:', error);
+      throw new Error(`テストケース生成に失敗しました: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
 
   /**
-   * テスト実行結果を分析して改善提案を生成
+   * テスト実行結果を分析
    */
   async analyzeTestResults(testResults: any): Promise<string> {
-    const prompt = `
-E2Eテストの実行結果を分析して、改善提案をお願いします。
-
-テスト結果:
-${JSON.stringify(testResults, null, 2)}
-
-以下の観点で分析してください：
-1. 失敗した理由
-2. テストの安定性
-3. パフォーマンスの問題
-4. 改善提案
-
-回答は日本語でお願いします。
-    `;
-
     try {
+      const prompt = this.buildAnalysisPrompt(testResults);
+      console.log('Sending analysis prompt to Gemini:', prompt);
+
       const result = await this.model.generateContent(prompt);
       const response = await result.response;
-      return response.text();
+      const analysis = response.text();
+
+      console.log('Gemini analysis response:', analysis);
+      return analysis;
     } catch (error) {
-      console.error('テスト結果分析エラー:', error);
-      return 'テスト結果の分析に失敗しました。';
+      console.error('Gemini analysis error:', error);
+      throw new Error(`テスト結果分析に失敗しました: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
 
   /**
-   * プロンプトを構築
+   * テストケース生成用のプロンプトを構築
    */
-  private buildPrompt(request: GenerateTestRequest): string {
-    return `
-あなたはE2Eテスト自動化の専門家です。以下の情報に基づいて、Playwright MCPで実行可能なテストケースを生成してください。
+  private buildTestGenerationPrompt(request: GenerateTestRequest): string {
+    const { targetUrl, description, requirements, existingScenarios } = request;
 
-テスト対象URL: ${request.targetUrl}
-テストの説明: ${request.description}
-${request.requirements ? `要件: ${request.requirements.join(', ')}` : ''}
+    let prompt = `
+E2E テストケースを生成してください。以下の情報に基づいて、JSON形式でテストステップを作成してください。
 
-以下のJSON形式で回答してください:
+**対象URL**: ${targetUrl}
+**テスト説明**: ${description}
 
+**利用可能なステップタイプ**:
+- navigate: ページに移動
+- click: 要素をクリック 
+- type: テキストを入力
+- wait: 待機
+- assert: アサーション（要素の存在、テキスト確認等）
+- screenshot: スクリーンショット撮影
+
+**要件**:
+${requirements ? requirements.map(req => `- ${req}`).join('\n') : '- 基本的な機能テストを実行'}
+
+**レスポンス形式** (JSON):
 {
-  "name": "テスト名",
-  "description": "テストの詳細説明",
-  "steps": [
-    {
-      "id": "step1",
-      "type": "navigate|click|type|wait|assert|screenshot",
-      "description": "ステップの説明",
-      "selector": "要素のセレクタ（必要な場合）",
-      "value": "入力値（必要な場合）",
-      "expected": "期待される結果（必要な場合）",
-      "timeout": 5000
-    }
-  ],
-  "confidence": 0.0-1.0,
-  "reasoning": "このテストケースを生成した理由"
+  "scenario": {
+    "name": "テスト名",
+    "description": "テストの説明",
+    "targetUrl": "${targetUrl}",
+    "steps": [
+      {
+        "id": "step-1",
+        "type": "navigate",
+        "description": "ページに移動",
+        "selector": "",
+        "value": "${targetUrl}",
+        "timeout": 5000,
+        "status": "pending"
+      },
+      {
+        "id": "step-2", 
+        "type": "click",
+        "description": "ボタンをクリック",
+        "selector": "button[type='submit']",
+        "timeout": 3000,
+        "status": "pending"
+      }
+    ]
+  },
+  "confidence": 85,
+  "reasoning": "なぜこのテストケースを提案したかの理由"
 }
 
-重要な注意点:
-1. Playwright MCPのアクセシビリティツリーを活用してください
-2. 安定性の高いセレクタを使用してください
-3. 適切な待機時間を設定してください
-4. テストステップは論理的な順序で配置してください
-5. 必ず有効なJSONフォーマットで回答してください
+**重要な注意点**:
+1. selectorは可能な限り具体的で安定したものを使用（id、data-testid、role等）
+2. 各ステップには適切なtimeoutを設定
+3. テストの流れは論理的で実用的である必要があります
+4. アクセシビリティを考慮したセレクタを優先してください
 
-実際のWebページの構造を推測して、現実的なテストステップを生成してください。
-    `;
+既存のシナリオ（重複を避けるため）:
+${existingScenarios ? existingScenarios.join(', ') : 'なし'}
+
+JSON形式でのみ回答してください。`;
+
+    return prompt;
   }
 
   /**
-   * AIレスポンスをパース
+   * テスト結果分析用のプロンプトを構築
    */
-  private parseAIResponse(text: string): any {
+  private buildAnalysisPrompt(testResults: any): string {
+    return `
+以下のE2Eテスト実行結果を分析し、問題点と改善提案を日本語で提供してください:
+
+**テスト結果データ**:
+${JSON.stringify(testResults, null, 2)}
+
+**分析してほしい内容**:
+1. テストの成功/失敗の原因
+2. パフォーマンスに関する問題
+3. テストの安定性に関する問題
+4. セレクタやタイミングの改善提案
+5. 今後のテスト改善のための推奨事項
+
+**回答形式**:
+分析結果を構造化された日本語で回答してください。技術的な詳細と実用的な改善提案を含めてください。
+`;
+  }
+
+  /**
+   * Geminiのレスポンスをパース
+   */
+  private parseTestCaseResponse(response: string, targetUrl: string): {
+    scenario: any;
+    confidence: number;
+    reasoning: string;
+  } {
     try {
-      // JSONの開始と終了を見つける
-      const jsonStart = text.indexOf('{');
-      const jsonEnd = text.lastIndexOf('}') + 1;
-      
-      if (jsonStart === -1 || jsonEnd === 0) {
-        throw new Error('Valid JSON not found in response');
-      }
-      
-      const jsonString = text.substring(jsonStart, jsonEnd);
-      const parsed = JSON.parse(jsonString);
-      
-      // 基本的なバリデーション
-      if (!parsed.name || !parsed.description || !Array.isArray(parsed.steps)) {
+      // JSONブロックを抽出
+      const jsonMatch = response.match(/```json\s*([\s\S]*?)\s*```/) || response.match(/\{[\s\S]*\}/);
+      let jsonStr = jsonMatch ? jsonMatch[1] || jsonMatch[0] : response;
+
+      // JSONをパース
+      const parsed = JSON.parse(jsonStr);
+
+      // 基本的な検証
+      if (!parsed.scenario || !parsed.scenario.steps) {
         throw new Error('Invalid response format');
       }
-      
-      // stepsにIDとstatus追加
-      parsed.steps = parsed.steps.map((step: any, index: number) => ({
-        ...step,
-        id: step.id || `step_${index + 1}`,
-        status: 'pending'
+
+      // ステップの正規化
+      const normalizedSteps: TestStep[] = parsed.scenario.steps.map((step: any, index: number) => ({
+        id: step.id || `step-${index + 1}`,
+        type: this.normalizeStepType(step.type),
+        description: step.description || `Step ${index + 1}`,
+        selector: step.selector || '',
+        value: step.value || '',
+        timeout: step.timeout || 5000,
+        expected: step.expected || '',
+        status: TestStatus.PENDING,
+        screenshot: step.screenshot || ''
       }));
-      
-      return parsed;
-      
-    } catch (error) {
-      console.error('AIレスポンスのパースに失敗:', error);
-      
-      // フォールバック: デフォルトのテストケースを返す
+
       return {
-        name: `${new URL(this.extractUrl(text) || 'unknown').hostname} のテスト`,
-        description: '基本的なナビゲーションテスト',
-        steps: [
-          {
-            id: 'step_1',
-            type: 'navigate',
-            description: 'ページに移動',
-            status: 'pending',
-            timeout: 5000
-          },
-          {
-            id: 'step_2',
-            type: 'screenshot',
-            description: 'スクリーンショットを撮影',
-            status: 'pending'
-          }
-        ],
-        confidence: 0.5,
-        reasoning: 'AIレスポンスのパースに失敗したため、デフォルトテストを生成'
+        scenario: {
+          name: parsed.scenario.name || 'Generated Test Case',
+          description: parsed.scenario.description || 'AI-generated test case',
+          targetUrl: targetUrl,
+          steps: normalizedSteps
+        },
+        confidence: Math.min(100, Math.max(0, parsed.confidence || 75)),
+        reasoning: parsed.reasoning || 'AI-generated test case based on provided requirements'
       };
+    } catch (error) {
+      console.error('Failed to parse Gemini response:', error);
+      console.error('Raw response:', response);
+
+      // フォールバック: 基本的なテストケースを生成
+      return this.createFallbackTestCase(targetUrl);
     }
   }
 
   /**
-   * テキストからURLを抽出
+   * ステップタイプの正規化
    */
-  private extractUrl(text: string): string | null {
-    const urlRegex = /https?:\/\/[^\s]+/g;
-    const match = text.match(urlRegex);
-    return match ? match[0] : null;
+  private normalizeStepType(type: string): StepType {
+    const normalizedType = type.toLowerCase();
+    switch (normalizedType) {
+      case 'navigate':
+        return StepType.NAVIGATE;
+      case 'click':
+        return StepType.CLICK;
+      case 'type':
+        return StepType.TYPE;
+      case 'wait':
+        return StepType.WAIT;
+      case 'assert':
+        return StepType.ASSERT;
+      case 'screenshot':
+        return StepType.SCREENSHOT;
+      default:
+        return StepType.NAVIGATE;
+    }
+  }
+
+  /**
+   * フォールバックテストケースを作成
+   */
+  private createFallbackTestCase(targetUrl: string): {
+    scenario: any;
+    confidence: number;
+    reasoning: string;
+  } {
+    return {
+      scenario: {
+        name: 'Basic Page Test',
+        description: 'Basic test case to verify page accessibility',
+        targetUrl,
+        steps: [
+          {
+            id: 'step-1',
+            type: StepType.NAVIGATE,
+            description: 'Navigate to the target page',
+            selector: '',
+            value: targetUrl,
+            timeout: 10000,
+            expected: '',
+            status: TestStatus.PENDING,
+            screenshot: ''
+          },
+          {
+            id: 'step-2',
+            type: StepType.WAIT,
+            description: 'Wait for page to load',
+            selector: 'body',
+            value: '',
+            timeout: 5000,
+            expected: '',
+            status: TestStatus.PENDING,
+            screenshot: ''
+          },
+          {
+            id: 'step-3',
+            type: StepType.SCREENSHOT,
+            description: 'Take a screenshot',
+            selector: '',
+            value: '',
+            timeout: 3000,
+            expected: '',
+            status: TestStatus.PENDING,
+            screenshot: ''
+          }
+        ]
+      },
+      confidence: 50,
+      reasoning: 'Fallback test case created due to parsing error. This provides basic page verification.'
+    };
   }
 } 
