@@ -7,6 +7,7 @@ import { TestScenarios } from './pages/TestScenarios';
 import { CreateScenario } from './pages/CreateScenario';
 import { TestExecutions } from './pages/TestExecutions';
 import { ExecutionDetail } from './pages/ExecutionDetail';
+import { AIGenerate } from './pages/AIGenerate';
 import './index.css';
 
 const queryClient = new QueryClient({
@@ -27,9 +28,11 @@ function App() {
           <Routes>
             <Route path="/" element={<Dashboard />} />
             <Route path="/scenarios" element={<TestScenarios />} />
-            <Route path="/scenarios/create" element={<CreateScenario />} />
+            <Route path="/create-scenario" element={<CreateScenario />} />
+            <Route path="/ai-generate" element={<AIGenerate />} />
             <Route path="/executions" element={<TestExecutions />} />
             <Route path="/executions/:id" element={<ExecutionDetail />} />
+            <Route path="/scenarios/:id/edit" element={<CreateScenario />} />
           </Routes>
         </Layout>
       </Router>

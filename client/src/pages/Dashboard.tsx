@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 
 interface DashboardStats {
   totalScenarios: number;
@@ -133,24 +134,24 @@ export const Dashboard: React.FC = () => {
       <div className="card">
         <h3 className="text-lg font-medium text-gray-900 mb-4">クイックアクション</h3>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <a
-            href="/scenarios"
+          <Link
+            to="/create-scenario"
             className="btn btn-primary text-center"
           >
             📝 新規シナリオ作成
-          </a>
-          <a
-            href="/ai-generate"
+          </Link>
+          <Link
+            to="/ai-generate"
             className="btn btn-secondary text-center"
           >
             🤖 AIでテスト生成
-          </a>
-          <a
-            href="/executions"
+          </Link>
+          <Link
+            to="/executions"
             className="btn btn-secondary text-center"
           >
             📊 実行履歴を確認
-          </a>
+          </Link>
         </div>
       </div>
 

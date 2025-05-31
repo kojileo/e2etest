@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 
 interface TestScenario {
   id: string;
@@ -11,9 +12,9 @@ interface TestScenario {
 }
 
 export const TestScenarios: React.FC = () => {
+  const navigate = useNavigate();
   const [scenarios, setScenarios] = useState<TestScenario[]>([]);
   const [loading, setLoading] = useState(true);
-  const [showCreateModal, setShowCreateModal] = useState(false);
 
   useEffect(() => {
     fetchScenarios();
@@ -58,7 +59,7 @@ export const TestScenarios: React.FC = () => {
           <p className="text-gray-600">E2Eテストシナリオの管理</p>
         </div>
         <button
-          onClick={() => setShowCreateModal(true)}
+          onClick={() => navigate('/create-scenario')}
           className="btn btn-primary"
         >
           📝 新規作成
@@ -76,7 +77,7 @@ export const TestScenarios: React.FC = () => {
             最初のテストシナリオを作成して始めましょう
           </p>
           <button
-            onClick={() => setShowCreateModal(true)}
+            onClick={() => navigate('/create-scenario')}
             className="btn btn-primary"
           >
             シナリオを作成
@@ -100,7 +101,7 @@ export const TestScenarios: React.FC = () => {
                 </div>
                 <div className="flex items-center space-x-2 ml-4">
                   <button
-                    onClick={() => window.open(`/scenarios/${scenario.id}`, '_blank')}
+                    onClick={() => navigate(`/scenarios/${scenario.id}/edit`)}
                     className="btn btn-secondary text-sm"
                   >
                     編集
@@ -115,28 +116,6 @@ export const TestScenarios: React.FC = () => {
               </div>
             </div>
           ))}
-        </div>
-      )}
-
-      {/* Create Modal (Placeholder) */}
-      {showCreateModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-lg p-6 w-full max-w-md">
-            <h3 className="text-lg font-medium text-gray-900 mb-4">
-              新規シナリオ作成
-            </h3>
-            <p className="text-gray-600 mb-4">
-              現在開発中です。しばらくお待ちください。
-            </p>
-            <div className="flex justify-end space-x-3">
-              <button
-                onClick={() => setShowCreateModal(false)}
-                className="btn btn-secondary"
-              >
-                閉じる
-              </button>
-            </div>
-          </div>
         </div>
       )}
     </div>
